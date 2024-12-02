@@ -1,3 +1,4 @@
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -13,13 +14,10 @@ public class Launcher : MonoBehaviour
     [SerializeField] private int pointsCount;
     [SerializeField] private float spaceBetween;
 
-    private Vector2 direction;
-    private float smoothChangeSpeed = 5f;
-    private float verticalDirection = 0f;
-    private float horizontalDirection = 0f;
+    private Vector3 direction;
 
-
-    private void Start() {
+    private void Start()
+    {
         pointsList = new GameObject[pointsCount];
         for (int i = 0; i < pointsCount; i++)
         {
@@ -29,62 +27,59 @@ public class Launcher : MonoBehaviour
 
     private void Update()
     {
-        Vector2 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 launchPosition = transform.position;
+        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        Plane plane = new Plane(Vector3.up, launchPoint.position);
+        float distance;
 
-        direction = mousePosition - launchPosition;
-        direction = direction.normalized;
+        if (plane.Raycast(ray, out distance))
+        {
+            Vector3 mousePosition = ray.GetPoint(distance);
+            Vector3 launchPosition = transform.position;
 
-        if (Input.GetKey(KeyCode.W))
-        {
-            verticalDirection = Mathf.Lerp(verticalDirection, 1f, smoothChangeSpeed * Time.deltaTime);
-        }
-        else if (Input.GetKey(KeyCode.S))
-        {
-            verticalDirection = Mathf.Lerp(verticalDirection, -1f, smoothChangeSpeed * Time.deltaTime);
-        }
-        else
-        {
-            verticalDirection = Mathf.Lerp(verticalDirection, 0f, smoothChangeSpeed * Time.deltaTime);
-        }
+            // Calcular la dirección hacia el mouse
+            direction = (mousePosition - launchPosition).normalized;
 
-        if (Input.GetKey(KeyCode.D))
-        {
-            horizontalDirection = Mathf.Lerp(horizontalDirection, 1f, smoothChangeSpeed * Time.deltaTime);
-        }
-        else if (Input.GetKey(KeyCode.A))
-        {
-            horizontalDirection = Mathf.Lerp(horizontalDirection, -1f, smoothChangeSpeed * Time.deltaTime);
-        }
-        else
-        {
-            horizontalDirection = Mathf.Lerp(horizontalDirection, 0f, smoothChangeSpeed * Time.deltaTime);
-        }
+            // Hacer que el objeto apunte hacia la dirección calculada
+            Quaternion targetRotation = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, 360 * Time.deltaTime);
 
-        direction = new Vector2(direction.x + horizontalDirection, direction.y + verticalDirection);
-        direction = direction.normalized;
+            // Actualizar la posición de los puntos de parábola
+            for (int i = 0; i < pointsCount; i++)
+            {
+                pointsList[i].transform.position = CurrentPosition(i * spaceBetween);
+            }
 
-        transform.right = direction;
-
-        if (Input.GetMouseButtonDown(0))
-        {
-            Shoot();
-        }
-
-        for (int i = 0; i < pointsCount; i++)
-        {
-            pointsList[i].transform.position = CurrentPosition(i * spaceBetween);
+            // Disparar si se presiona el botón del mouse
+            if (Input.GetMouseButtonDown(0))
+            {
+                Shoot();
+            }
         }
     }
 
-    private void Shoot(){
+    private void Shoot()
+    {
+        // Instanciar el proyectil
         GameObject proyectile = Instantiate(proyectilePrefab, launchPoint.position, Quaternion.identity);
-        proyectile.GetComponent<Rigidbody2D>().velocity = transform.right * launchModifier;
+
+        // Obtener la dirección actual del arco
+        Vector3 shootDirection = transform.forward; // Usar la dirección del frente del arco
+
+        // Establecer la velocidad del proyectil
+        proyectile.GetComponent<Rigidbody>().velocity = shootDirection * launchModifier;
+
+        // Opcional: Si deseas que el proyectil tenga una trayectoria parabólica
+        // Puedes agregar una fuerza hacia arriba para simular la gravedad
+        proyectile.GetComponent<Rigidbody>().AddForce(Vector3.up * launchModifier, ForceMode.Impulse);
     }
 
-    private Vector2 CurrentPosition(float t){
-        return (Vector2)launchPoint.position + (direction.normalized * launchModifier * t) + (Vector2)(0.5f * Physics.gravity * (t * t));
+    private Vector3 CurrentPosition(float t)
+    {
+        // Usar la dirección actual del arco para calcular la trayectoria
+        Vector3 shootDirection = transform.forward; // Dirección hacia donde apunta el arco
+        return launchPoint.position + (shootDirection * launchModifier * t) + (0.5f * Physics.gravity * (t * t));
     }
+
     public void OnCollisionStay(Collision collision)
     {
         if (collision.gameObject.tag == "enemigo")
